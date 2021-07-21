@@ -1,0 +1,81 @@
+version: '2.1'
+
+services:
+  # OWNCLOUD Service
+  owncloud:
+    image: owncloud/server:latest
+    restart: always
+    container_name: owncloud
+    ports:
+      - 8081:8080
+    depends_on:
+      - db
+      - redis
+    healthcheck:
+      test: ["CMD", "/usr/bin/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    environment:
+      - OWNCLOUD_DOMAIN=0.0.0.0
+      - OWNCLOUD_DB_TYPE=mysql
+      - OWNCLOUD_DB_NAME=owncloud
+      - OWNCLOUD_DB_USERNAME=root
+      - OWNCLOUD_DB_PASSWORD=CHANGEME
+      - OWNCLOUD_DB_HOST=db
+      - OWNCLOUD_MYSQL_UTF8MB4=true
+      - OWNCLOUD_REDIS_ENABLED=true
+      - OWNCLOUD_REDIS_HOST=redis
+    volumes:
+      - ./data/:/mnt/data
+      - ./uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
+      - ./data/themes/mytheme/:/var/www/owncloud/themes/mytheme
+  # MariaDB Database    
+  db:
+    image: mariadb:10.5
+    restart: always
+    container_name: owncloud_db
+    environment:
+      MYSQL_ROOT_PASSWORD: CHANGEME
+      MYSQL_DATABASE: owncloud
+    healthcheck:
+      test: "/usr/bin/mysql --user=root --password=CHANGEME --execute \"SHOW DATABASES;\""
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    ports:
+      - 3310:3306
+    volumes:
+      - /data/docker/db/owncloud:/var/lib/mysql
+      - ./owncloud-backup:/var/lib/backup
+      - ./uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
+    command: ['mysqld', '--character-set-server=utf8mb4', '--collation-server=utf8mb4_unicode_ci', "--max-allowed-packet=128M", "--innodb-log-file-size=64M"]
+  # REDIS Caching
+  redis:
+    image: webhippie/redis:latest
+    restart: always
+    container_name: owncloud_redis
+    environment:
+      - REDIS_DATABASES=1
+    healthcheck:
+      test: ["CMD", "/usr/bin/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - ./redis:/var/lib/redis
+  # PhpMyAdmin Service
+  phpmyadmin_cloud:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: phpmyadmin_cloud
+    ports:
+      - 8082:80
+    environment:
+      PMA_HOST: db
+    volumes:
+      - phpmyadmindata_cloud:/usr/src/phpmyadmin:delegated
+    depends_on:
+      - db
+# Volumes
+volumes:
+  phpmyadmindata_cloud:
